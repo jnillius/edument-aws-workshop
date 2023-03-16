@@ -91,7 +91,11 @@ Next, create the _TMS API_ service:
 
     copilot svc init --name api --svc-type "Load Balanced Web Service" --dockerfile modules/api/Dockerfile
 
-Open `copilot/api/manifest.yml` and change the path for the [health check](https://aws.github.io/copilot-cli/docs/manifest/lb-web-service/#http-healthcheck) to `/healthz`.
+Open `copilot/api/manifest.yml` and change:
+
+*   The path for the [health check](https://aws.github.io/copilot-cli/docs/manifest/lb-web-service/#http-healthcheck) to `/healthz`. 
+
+*   The [number](https://aws.github.io/copilot-cli/docs/manifest/lb-web-service/#count) of service instance to **2**.
 
 Finally, run:
 
@@ -221,8 +225,6 @@ Once redeployment is finished:
 
 In the AWS Console, view the logs for the _TMS Content_ service (and its two instances). You should see that after fault injection, _all_ subsequent requests are forwarded to the healthy instance.
 
-### _Optional: Observabilty (X-Ray)_
-
 ## Exercise 3: PubSub
 In this exercise, a [Worker Service](https://aws.github.io/copilot-cli/docs/concepts/services/#worker-service) for processing content requests is created and deployed.
 
@@ -261,8 +263,6 @@ To test the processor locally:
 Modify `copilot/api/manifest.yml` to allow the _TMS API_ to publish requests to the queue (see more [here](https://aws.github.io/copilot-cli/docs/developing/publish-subscribe/#sending-messages-from-a-publisher)):
 
 > Name your topic __requestsTopic__.
-
-> Also increase the [number](https://aws.github.io/copilot-cli/docs/manifest/lb-web-service/#count) of instances to **2**.
 
 In `modules/api`:
 
@@ -317,7 +317,7 @@ To enable autoscaling, in `copilot/modules/processor`:
 
 *   Set the `msg_processing_time` to be **1s**.
 
-> How many "tasks per instance" does this amount to?
+> How many "tasks per instance" does this amount to, and what does that imply in terms of the average amount of messages in the queue at any given time?
 
 *   In `modules/processor/src/index.js`, simulate a "processing time" of **1s** in the `processor` function in , using the `delay` helper.
 
@@ -329,3 +329,60 @@ To observe autoscaling, send a large number of requests to _TMS API_:
     ab -n 1000 -m POST http://<AWS_URL>/content
 
 After a while, AWS CloudWatch will trigger an alarm that will invoke the scaling policy; the maximum number of instances should now have been started.
+
+## Exercise 5: Observability
+To enable distributed tracing using X-Ray:
+
+> Note: Skip the `processor` module in the steps below (due to a bug in tracing for SQS messages).
+
+*   Copy the `addons` folder (containing an `xray.yml` file) into **each** `copilot/<module>` folder.
+
+*   Change the `Name` parameter in **each** `xray.yml` file to match the module (`api`, `content`).
+
+*   In **each** `copilot/<module>/manifest.yml` file, add the following:
+
+        observability:
+            tracing: awsxray
+
+*   In **each** `modules/<module>` folder, add the following **at the very top** in `src/index.js`:
+
+        // change '<module>' to match, e.g. 'api'.
+        const tracer = require('./tracer')('<module>');
+
+    > This will automatically trace incoming and outgoing traffic for the Express application.
+
+*   Redeploy **each** of the services. 
+
+Once deployment has finished, send a number of requests to the _TMS API_. Navigate to AWS CloudWatch and select X-Ray tracer -> Service map - you should now see a view of the various TMS services and the traffic between them.
+
+## Exercise 6: Pipeline
+In this exercise, you will create an automated [pipeline](https://aws.github.io/copilot-cli/docs/concepts/pipelines/) to build and deploy services to your _test_ environment.
+
+In the **project root**, run:
+
+    copilot pipeline init --name tms-pipeline
+
+> Choose **Workloads** as the pipeline type, and **test** for your environment.
+
+**Commit and push the changes (a `copilot/pipelines` folder has been added) to the repo.**
+
+Run:
+
+    copilot pipeline deploy
+
+The connection between AWS and Github needs to be completed:
+
+*   Navigate to https://console.aws.amazon.com/codesuite/settings/connections
+
+*   Click "Update pending connection" and follow the steps.
+
+To test the pipeline, make a change to a source file in any of the modules, then commit and push the change; to follow the pipeline status, run:
+
+    copilot pipeline status
+
+You can also follow the progress in the AWS Console, go to **CodePipeline**.
+
+## Cleanup
+When finished with the exercise, remove the application and all deployed resources by running the following in the **project root**:
+
+    copilot app delete
