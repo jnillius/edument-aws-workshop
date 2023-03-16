@@ -305,3 +305,27 @@ After deployment, follow the logs of the `processor` Worker Service in realtime:
 When POSTing a new content request to `http://<AWS_URL>/content`, you should see the `processor` Worker Service logging the request ID shortly thereafter.
 
 ### Service Autoscaling
+The number of Worker instances can be dynamically and automatically adjusted based on a custom metric that takes into account _the average message processing time_ and _the acceptable latency_ (how long on average a message should remain in the queue before being consumed).
+
+> Read more in the [documentation](https://aws.github.io/copilot-cli/docs/manifest/worker-service/#count-queue-delay) on using this "queue delay" scaling policy.
+
+To enable autoscaling, in `copilot/modules/processor`:
+
+*   Set the range of instances to be between **1** (min) and **5** (max).
+
+*   Set the `acceptable_latency` to be **10s** (for our purposes, this allows the autoscaling to commence faster).
+
+*   Set the `msg_processing_time` to be **1s**.
+
+> How many "tasks per instance" does this amount to?
+
+*   In `modules/processor/src/index.js`, simulate a "processing time" of **1s** in the `processor` function in , using the `delay` helper.
+
+*   Redeploy the _TMS Processor_ service.
+
+To observe autoscaling, send a large number of requests to _TMS API_:
+
+    // macOS.
+    ab -n 1000 -m POST http://<AWS_URL>/content
+
+After a while, AWS CloudWatch will trigger an alarm that will invoke the scaling policy; the maximum number of instances should now have been started.

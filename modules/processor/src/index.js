@@ -1,3 +1,13 @@
+// ...
+// Helper function for the "Service Autoscaling" section.
+const delay = delayMs => {
+  return new Promise(resolve => {
+    setTimeout(resolve, delayMs)
+  });
+};
+
+// ...
+
 let running = true;
 
 // ...
