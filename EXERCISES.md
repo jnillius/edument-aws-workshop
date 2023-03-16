@@ -27,13 +27,11 @@ After a while, your deployment in the terminal will abort successfully; fix the 
 ## Exercise 1: TMS API 
 In this exercise, an AWS Copilot [Load Balanced Web Service](https://aws.github.io/copilot-cli/docs/concepts/services/#load-balanced-web-service) for the _TMS API_ is created and deployed.
 
-A basic API server exists in `src/api` with the following endpoints defined in `src/api/routes.js`:
+A basic API server exists in `src/api` with the following endpoint defined to accept a content request in `src/api/routes.js`:
 
-    GET   /status/:id
-    GET   /content/:id
     POST  /content
 
-> All routes just return a (dummy) response of 'OK' for now.
+> The route just returns a (dummy) response of 'OK' for now.
 
 A Load Balanced Web Service must support _health checks_ and handle shutdowns gracefully:
 
@@ -264,6 +262,8 @@ Modify `copilot/api/manifest.yml` to allow the _TMS API_ to publish requests to 
 
 > Name your topic __requestsTopic__.
 
+> Also increase the [number](https://aws.github.io/copilot-cli/docs/manifest/lb-web-service/#count) of instances to **2**.
+
 In `modules/api`:
 
 *   Modify `src/env.js` to parse and export the name of the topic (also an environment variable):
@@ -303,3 +303,5 @@ After deployment, follow the logs of the `processor` Worker Service in realtime:
     copilot svc logs --name processor --follow
 
 When POSTing a new content request to `http://<AWS_URL>/content`, you should see the `processor` Worker Service logging the request ID shortly thereafter.
+
+### Service Autoscaling
