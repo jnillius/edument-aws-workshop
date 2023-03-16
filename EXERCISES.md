@@ -170,3 +170,136 @@ To create and deploy the _TMS Content_ service, in the **project root** folder:
 
         copilot svc logs --name content
 
+### Resiliency
+ECS Service Connect allows for automatic request retries if a service instance fails with e.g. a 503 status code; it transparent resends a failed request to a healthy instance, meaning the client doesn't have to embed retry logic explicitly in its code.
+
+You can enable and observe this as follows:
+
+*   Increase the [number](https://aws.github.io/copilot-cli/docs/manifest/backend-service/#count) of _TMS Content_ service instances to **2** in `copilot/content/manifest.yml`. 
+
+    To enable automatic retries requires the following section to be added to the manifest:
+
+        taskdef_overrides:
+            - path: "ContainerDefinitions[0].PortMappings[0].appProtocol"
+                value: "http"
+
+    Add the same section in `copilot/api/manifest.yml`.
+
+*   In the `modules/content` folder, use the `fault` Express middleware defined in `src/middleware.js` in the Express application created in `src/index.js`.
+
+    The `fault` middleware intercepts call to an `/503` endpoint and injects 503 responses for 3 minutes. 
+
+*   In the `modules/api` folder, add a route `/injectfault` in `src/routes.js` that invokes the _TMS Content_ service's `/503` endpoint:
+
+            routes.post('/injectfault', async (_, res) => {
+            const response = await axios({
+                method: 'POST',
+                url: 'http://content/503'
+            });
+
+            res.send(response.data);
+        });
+
+*   Redeploy the _TMS Content_ service:
+
+        copilot svc deploy --name content
+
+*   Redeploy the _TMS API_ service:
+
+        copilot svc deploy --name api
+
+Once redeployment is finished: 
+
+*   Inject fault into one of the _TMS Content_ service instances:
+
+        curl -X POST http://<AWS_URL>/injectfault
+
+    > `<AWS_URL>` is the Load Balanced Web Service URL for the _TMS API_. 
+
+*   Send a number of requests:
+
+        // macOS.
+        ab -n 10 -m POST http://<AWS_URL>/content
+
+In the AWS Console, view the logs for the _TMS Content_ service (and its two instances). You should see that after fault injection, _all_ subsequent requests are forwarded to the healthy instance.
+
+### _Optional: Observabilty (X-Ray)_
+
+## Exercise 3: PubSub
+In this exercise, a [Worker Service](https://aws.github.io/copilot-cli/docs/concepts/services/#worker-service) for processing content requests is created and deployed.
+
+The _TMS API_ service will be modified to act as the _publisher_ of content requests.
+
+### TMS Processor (Worker Service / subscriber)
+The sample code in the [documentation](https://aws.github.io/copilot-cli/docs/developing/publish-subscribe/#javascript-example_1) illustrates how to implement a SQS subscriber.
+
+> Make sure you change the region to match yours!
+
+> Notice the `COPILOT_QUEUE_URI` environment variable - this is the address of the queue from which content requests are be consumed and processed (it's also available via `env.queueUrl` - see `modules/processor/src/env.js`).
+
+The sample code in the documentation currently does not run repeatedly to consume requests from the queue (it does so only once). Implement continuous request processing in `modules/processor/src/index.js` by following the _TODOs_ and comments. 
+
+To test the processor locally:
+
+*   Create a new SQS queue using the AWS Console; copy the queue URI (referred to as `<MY_QUEUE_URI>` below).
+
+*   Run the processor (in `modules/processor`):
+
+        npm install
+
+        COPILOT_QUEUE_URI=<MY_QUEUE_URI> node src/index.js
+        
+*   In the AWS Console, send a message to the queue with the following body:
+
+        {"Message":"1234"}
+
+    The processor should log the received message.
+
+*   Ensure that Ctrl+C ends the loop and thereby shuts down the processor gracefully.
+
+    > What is the (estimated) maximum duration for the processor to terminate?
+
+### TMS API (publisher)
+Modify `copilot/api/manifest.yml` to allow the _TMS API_ to publish requests to the queue (see more [here](https://aws.github.io/copilot-cli/docs/developing/publish-subscribe/#sending-messages-from-a-publisher)):
+
+> Name your topic __requestsTopic__.
+
+In `modules/api`:
+
+*   Modify `src/env.js` to parse and export the name of the topic (also an environment variable):
+
+        const {
+            requestsTopic
+        } = JSON.parse(process.env.COPILOT_SNS_TOPIC_ARNS);
+
+        // ...
+        
+        module.exports = {
+            port,
+            requestsTopic // <---
+        };
+
+*   In `src/routes.js`, for the POST route, publish a request to the queue using the [documentation's sample code](https://aws.github.io/copilot-cli/docs/developing/publish-subscribe/#javascript-example) as a starting point.
+
+    > Remember to change the SNS client to be your region!
+
+    > Instead of the `Message` being `"hello"`, set it to the ID returned by the call to the _TMS Content_ service.
+
+### Deployment
+In the **project root** folder, deploy the changes to the _TMS API_ service:
+
+    copilot svc deploy --name api
+
+Add the new `processor` Worker Service:
+
+    copilot svc init --name processor --svc-type "Worker Service" --dockerfile modules/processor/Dockerfile
+
+> Make sure that the suggested `requestsTopic` is selected - marked as [x]!
+
+    copilot svc deploy --name processor
+
+After deployment, follow the logs of the `processor` Worker Service in realtime:
+
+    copilot svc logs --name processor --follow
+
+When POSTing a new content request to `http://<AWS_URL>/content`, you should see the `processor` Worker Service logging the request ID shortly thereafter.
