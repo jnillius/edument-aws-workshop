@@ -317,9 +317,9 @@ To enable autoscaling, in `copilot/modules/processor`:
 
 *   Set the `msg_processing_time` to be **1s**.
 
-> How many "tasks per instance" does this amount to, and what does that imply in terms of the average amount of messages in the queue at any given time?
+    > How many "tasks per instance" does this amount to, and what does that imply in terms of the average amount of messages in the queue at any given time?
 
-*   In `modules/processor/src/index.js`, simulate a "processing time" of **1s** in the `processor` function in , using the `delay` helper.
+*   In `modules/processor/src/index.js`, simulate a "processing time" of **1s** in the `processor` function, using the `delay` helper.
 
 *   Redeploy the _TMS Processor_ service.
 
@@ -333,7 +333,7 @@ After a while, AWS CloudWatch will trigger an alarm that will invoke the scaling
 ## Exercise 5: Observability
 To enable distributed tracing using X-Ray:
 
-> Note: Skip the `processor` module in the steps below (due to a bug in tracing for SQS messages).
+> Note: Skip the _TMS Processor_ service (= `processor`) in the steps below (due to a 3rd party bug in tracing for SQS messages).
 
 *   Copy the `addons` folder (containing an `xray.yml` file) into **each** `copilot/<module>` folder.
 
