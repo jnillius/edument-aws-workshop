@@ -95,8 +95,6 @@ Open `copilot/api/manifest.yml` and change:
 
 *   The path for the [health check](https://aws.github.io/copilot-cli/docs/manifest/lb-web-service/#http-healthcheck) to `/healthz`. 
 
-*   The [number](https://aws.github.io/copilot-cli/docs/manifest/lb-web-service/#count) of service instance to **2**.
-
 Finally, run:
 
     copilot svc deploy --name api
