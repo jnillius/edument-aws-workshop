@@ -114,6 +114,8 @@ In the `modules/api` folder:
 
     > Note: The URL of the _TMS Content_ service will be: `http://content`.
 
+In the `modules/content` folder:
+
 *   In `src/index.js`, add (_only_) SIGTERM handling, just like you did for the _TMS API_ service in the previous exercise. 
 
 You can use [Docker Compose](https://docs.docker.com/compose/) to locally test the interaction between the two services:
