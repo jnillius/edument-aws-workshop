@@ -152,11 +152,21 @@ To create and deploy the _TMS Content_ service, in the **project root** folder:
 
         copilot svc init --name content --svc-type "Backend Service" --dockerfile modules/content/Dockerfile 
 
-*   Open `copilot/content/manifest.yml` and provide an [ECS Service Connect custom alias](https://aws.github.io/copilot-cli/docs/developing/svc-to-svc-communication/#how-do-i-use-service-connect) that is the name of the service (`content`).
+*   Add the following to `copilot/content/manifest.yml`:
+    
+        taskdef_overrides:
+            - path: "ContainerDefinitions[0].PortMappings[0].appProtocol"
+              value: "http"    
 
 *   Deploy the _TMS Content_ service:
 
         copilot svc deploy --name content
+
+*   Add the following to `copilot/api/manifest.yml`:
+    
+        taskdef_overrides:
+            - path: "ContainerDefinitions[0].PortMappings[0].appProtocol"
+              value: "http"    
 
 *   Deploy the _TMS API_ and its changes:
 
@@ -179,14 +189,6 @@ You can enable and observe this as follows:
 
 *   Increase the [number](https://aws.github.io/copilot-cli/docs/manifest/backend-service/#count) of _TMS Content_ service instances to **2** in `copilot/content/manifest.yml`. 
 
-    To enable automatic retries requires the following section to be added to the manifest:
-
-        taskdef_overrides:
-            - path: "ContainerDefinitions[0].PortMappings[0].appProtocol"
-                value: "http"
-
-    Add the same section in `copilot/api/manifest.yml`.
-
 *   In the `modules/content` folder, use the `fault` Express middleware defined in `src/middleware.js` in the Express application created in `src/index.js`.
 
     The `fault` middleware intercepts call to an `/503` endpoint and injects 503 responses for 3 minutes. 
@@ -194,13 +196,13 @@ You can enable and observe this as follows:
 *   In the `modules/api` folder, add a route `/injectfault` in `src/routes.js` that invokes the _TMS Content_ service's `/503` endpoint:
 
             routes.post('/injectfault', async (_, res) => {
-            const response = await axios({
-                method: 'POST',
-                url: 'http://content/503'
-            });
+                const response = await axios({
+                    method: 'POST',
+                    url: 'http://content/503'
+                });
 
-            res.send(response.data);
-        });
+                res.send(response.data);
+            });
 
 *   Redeploy the _TMS Content_ service:
 
@@ -223,7 +225,7 @@ Once redeployment is finished:
         // macOS.
         ab -n 10 -m POST http://<AWS_URL>/content
 
-In the AWS Console, view the logs for the _TMS Content_ service (and its two instances). You should see that after fault injection, _all_ subsequent requests are forwarded to the healthy instance.
+In the AWS Console, view the logs for the _TMS Content_ service (and its two tasks). You should see that after fault injection, _all_ subsequent requests are forwarded to the healthy task.
 
 ## Exercise 3: PubSub
 In this exercise, a [Worker Service](https://aws.github.io/copilot-cli/docs/concepts/services/#worker-service) for processing content requests is created and deployed.
