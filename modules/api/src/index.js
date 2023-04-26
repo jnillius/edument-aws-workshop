@@ -28,3 +28,5 @@ process.on('SIGTERM', () => {
     );
     
 });
+
+console.log('THIS IS JUST A PRANK.')
