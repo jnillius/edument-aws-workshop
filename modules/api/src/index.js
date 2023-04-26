@@ -22,11 +22,11 @@ process.on('SIGTERM', () => {
     
     server.close(
         () => {
-            console.log('API server: Shutdown complete.')
+            console.log('API server: Shutdown complete.');
             process.exit(0); 
         }
     );
     
 });
 
-console.log('THIS IS JUST A PRANK.')
+console.log('THIS IS JUST A PRANK.');
